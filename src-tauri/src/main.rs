@@ -1,7 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod controller;
+mod dashboard;
+mod music;
 mod saves;
+mod storage;
 
 use tauri::{Manager, State};
 
@@ -44,9 +47,17 @@ fn configure_dashboard_webview(window: &tauri::WebviewWindow) -> tauri::Result<(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol("soundtrack", |context, request, responder| {
+            let app = context.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(music::serve(&app.state::<dashboard::Store>(), request));
+            });
+        })
         .manage(controller::WatchGeneration::default())
         .setup(|app| {
             let directory = app.path().app_local_data_dir()?;
+            app.manage(dashboard::Store::new(directory.clone()));
             app.manage(saves::Store::new(directory));
             #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
@@ -57,6 +68,12 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_saves,
             remove_save,
+            dashboard::bootstrap,
+            dashboard::patch_preferences,
+            music::list_tracks,
+            music::pick_tracks,
+            music::remove_track,
+            music::resolve_track,
             controller::watch_controller
         ])
         .run(tauri::generate_context!())
