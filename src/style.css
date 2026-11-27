@@ -22,10 +22,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
   isolation: isolate;
   overflow: hidden;
   container-type: inline-size;
+  container-name: dashboard;
   background: #081503;
 }
 
 .scene-background, #scene, .view { position: absolute; inset: 0; }
+.dashboard-graphics {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+[data-3d] .dashboard-graphics { visibility: visible; }
+[data-3d] :is(.scene-background, .home-orb, .view-device .disk-orb) { visibility: hidden; }
+[data-3d] :is(.home-orb, .view-device .disk-orb),
+[data-3d] .scene-background::after { animation-play-state: paused; }
 #startup {
   position: absolute;
   z-index: 4;
@@ -264,7 +278,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .view-home .blade {
   min-height: max(23px, 3.65cqw);
-  --face: linear-gradient(130deg, #1a3c087d, #315c158e);
+  --face: linear-gradient(130deg, #132e08e6, #254a10d9);
   --edge: #76a12660;
 }
 .view-home .blade[aria-disabled]:not(.focused) {
@@ -275,10 +289,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .view-home .blade-note { font-size: max(10px, .99cqw); }
 .view-home .blade.focused {
   --edge: #c2dd2d;
-  --face: linear-gradient(180deg, #a9b918 0%, #82900b 19%, #728600 62%, #b8ce28 100%);
+  --face: linear-gradient(180deg, #b6c827 0%, #a1b41a 19%, #8da111 62%, #b8ce28 100%);
 }
 .view-home .blade:nth-child(2), .view-home .blade:nth-child(3) { transform: translateX(1cqw); }
-.view-home .blade-label { position: relative; line-height: 1; color: inherit; font-size: 1.58cqw; }
+.view-home .blade-label { position: relative; line-height: 1; color: inherit; font-size: max(12px, 1.58cqw); }
 .view-home .blade-label[data-glyph] { color: transparent; }
 .view-home .blade-label::after {
   content: "";
@@ -306,6 +320,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   filter: brightness(.79);
 }
 .focused .pod { filter: brightness(1.28) drop-shadow(0 0 .55cqw #9bd43280); }
+
+@container dashboard (max-width: 550px) {
+  .view-home .controls { width: 42%; top: 20%; }
+  .view-home .blade { min-height: clamp(23px, 6.7cqw, 26px); }
+  .view-home .blade-label[data-glyph] { color: inherit; }
+  .view-home .blade-label::after { content: none; }
+  .view-device .controls { left: 25%; width: 50%; }
+}
 
 .view-device .blade {
   display: grid;

@@ -5,6 +5,7 @@ import { Input, type Action, type Direction, type PadState } from "./input.ts";
 import { nextFocus } from "./navigation.ts";
 import { Player, type Track } from "./player.ts";
 import { playIntro } from "./startup.ts";
+import type { createDashboardGraphics } from "./dashboard-graphics.ts";
 import { text, type Language, type Text } from "./strings.ts";
 import {
   listWebSaves, removeWebSave, readWebPreferences, writeWebPreferences,
@@ -59,6 +60,7 @@ let clock: HTMLElement | undefined;
 let clockFormat: Intl.DateTimeFormat;
 let playback: HTMLOutputElement | undefined;
 let playbackProgress: HTMLProgressElement | undefined;
+let graphics: ReturnType<typeof createDashboardGraphics> | undefined;
 
 const player = new Player(
   native ? id => invoke<string>("resolve_track", { id }) : resolveWebTrack,
@@ -573,6 +575,7 @@ function render() {
   view.append(prompts);
   (isModal(frame.route) ? panel : view).append(status);
   scene.replaceChildren(view);
+  graphics?.show(frame.route);
   syncFocus(true);
 }
 
@@ -597,24 +600,30 @@ function confirmation(view: HTMLElement, panel: HTMLElement, title: string, mess
   panel.append(copy);
 }
 
-async function animateChange(change: () => void, returning = false, modal = false) {
+async function animateChange(change: () => void, returning = false, modal = false,
+  destination?: Frame["route"]) {
   transition = true;
   scene.inert = true;
   input.block();
   const reduced = reducedMotion();
-  const depth = !reduced && !modal;
+  const travelDuration = 650;
+  const cameraTravel = !modal && graphics?.beginTravel(destination, travelDuration);
+  const depth = !reduced && !modal && !cameraTravel;
   try {
     await scene.animate([
       { transform: "scale(1)", opacity: 1 },
       { transform: `scale(${depth ? (returning ? .65 : 1.55) : 1})`, opacity: 0 },
-    ], { duration: reduced ? 60 : modal ? 85 : 250, easing: "cubic-bezier(.32,.72,0,1)" }).finished.catch(() => {});
+    ], { duration: cameraTravel ? travelDuration / 2 : reduced ? 60 : modal ? 85 : 250,
+      easing: "cubic-bezier(.32,.72,0,1)" }).finished.catch(() => {});
     change();
     render();
     await scene.animate([
       { transform: `scale(${depth ? (returning ? 1.34 : .76) : 1})`, opacity: 0 },
       { transform: "scale(1)", opacity: 1 },
-    ], { duration: reduced ? 70 : modal ? 125 : 400, easing: "cubic-bezier(.18,.72,.26,1)" }).finished.catch(() => {});
+    ], { duration: cameraTravel ? travelDuration / 2 : reduced ? 70 : modal ? 125 : 400,
+      easing: "cubic-bezier(.18,.72,.26,1)" }).finished.catch(() => {});
   } finally {
+    if (cameraTravel) graphics?.endTravel();
     transition = false;
     scene.inert = false;
     input.block();
@@ -624,14 +633,14 @@ async function animateChange(change: () => void, returning = false, modal = fals
 
 function enter(frame: Frame) {
   play("in");
-  void animateChange(() => stack.push(frame), false, isModal(frame.route));
+  void animateChange(() => stack.push(frame), false, isModal(frame.route), frame.route);
 }
 
 function back() {
   if (stack.length < 2) return;
   const route = current().route;
   play("out");
-  void animateChange(() => stack.pop(), true, isModal(route));
+  void animateChange(() => stack.pop(), true, isModal(route), stack.at(-2)?.route);
   if (route === "player") player.stop();
 }
 
@@ -972,6 +981,11 @@ async function startDashboard() {
   applyPreferences();
   render();
   setStatus(message);
+  void import("./dashboard-graphics.ts").then(({ createDashboardGraphics }) => {
+    graphics = createDashboardGraphics(dashboard);
+    if (!startup.isConnected) graphics.finishStartup();
+    graphics.show(current().route);
+  }).catch(error => console.warn("Dashboard graphics are unavailable.", error));
   const homeArt = Promise.allSettled(Array.from(scene.querySelectorAll("img"), image => image.decode()));
   if (!skipIntro.signal.aborted) {
     const skipButton = prompt(t("Skip Intro"), "A", () => skipIntro.abort());
@@ -993,6 +1007,7 @@ async function startDashboard() {
     }).finished.catch(() => {});
   }
   startup.remove();
+  graphics?.finishStartup();
   intro.removeAttribute("src");
   intro.load();
   input.block();
