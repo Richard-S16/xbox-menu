@@ -13,4 +13,6 @@ tauri = { version = "2", features = [] }
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"
 windows-sys = { version = "0.61", features = ["Win32_UI_Input_XboxController"] }
