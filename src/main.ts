@@ -3,19 +3,19 @@ import { Input, type Action, type Direction, type PadState } from "./input.ts";
 import "./style.css";
 
 type Save = { id: string; title: string; name: string; blocks: number };
-type Route = "home" | "device" | "saves" | "actions" | "confirm";
-type Frame = { route: Route; focus: string; scroll?: number; save?: Save };
-type Row = { id: string; label: string; note?: string; disabled?: boolean; run?: () => void };
+type Frame = { focus: string; scroll?: number } & (
+  { route: "home" | "device" | "saves" } | { route: "actions" | "confirm"; save: Save }
+);
+type Row = { id: string; label: string; note?: string; run?: () => void };
 
-const dashboard = document.querySelector<HTMLElement>("#dashboard")!;
 const scene = document.querySelector<HTMLElement>("#scene")!;
 const status = document.querySelector<HTMLElement>("#status")!;
 const stack: Frame[] = [{ route: "home", focus: "music" }];
 const current = () => stack.at(-1)!;
 const input = new Input(act);
 let saves: Save[] = [];
-let rows: Row[] = [];
-let rowElements: HTMLButtonElement[] = [];
+let controls: { row: Row; button: HTMLButtonElement }[] = [];
+let selectPrompt: HTMLButtonElement;
 let busy = false;
 let transition = false;
 let loadFailed = false;
@@ -71,30 +71,29 @@ function prompt(label: string, glyph: "A" | "B", run: () => void) {
 
 function syncFocus(restoreScroll = false) {
   const frame = current();
-  rowElements.forEach((node, index) => {
-    const selected = rows[index].id === frame.focus;
-    node.tabIndex = selected ? 0 : -1;
-    node.classList.toggle("focused", selected);
-    if (selected && !transition) {
-      node.focus({ preventScroll: true });
-      const list = node.parentElement!;
-      if (restoreScroll) list.scrollTop = frame.scroll ?? 0;
-      node.scrollIntoView({ block: "nearest", inline: "nearest" });
-      frame.scroll = list.scrollTop;
-    }
-  });
-  if (detail && frame.route === "saves") {
-    const selected = saves.find(save => save.id === frame.focus);
-    detail.replaceChildren();
-    if (selected) {
-      detail.append(element("strong", "", selected.title),
-        element("span", "", selected.name), element("span", "", `${selected.blocks} blocks`));
-    }
+  const selected = controls.find(control => control.row.id === frame.focus)!;
+  for (const { button } of controls) {
+    button.tabIndex = button === selected.button ? 0 : -1;
+    button.classList.toggle("focused", button === selected.button);
   }
-  if (frame.route === "home" && rows.find(row => row.id === frame.focus)?.disabled) {
-    setStatus("This section is unavailable in this build.");
-  } else if (frame.route === "home") {
-    setStatus("");
+  selectPrompt.hidden = !selected.row.run;
+  if (!transition) {
+    const button = selected.button;
+    const list = button.parentElement!;
+    button.focus({ preventScroll: true });
+    if (restoreScroll) list.scrollTop = frame.scroll ?? 0;
+    if (list.scrollHeight > list.clientHeight) {
+      button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    frame.scroll = list.scrollTop;
+  }
+  if (detail && frame.route === "saves") {
+    const save = saves.find(save => save.id === frame.focus);
+    detail.replaceChildren();
+    detail.hidden = !save;
+    if (save) {
+      detail.append(element("strong", "", save.name), element("span", "", `${save.blocks} blocks`));
+    }
   }
 }
 
@@ -106,22 +105,21 @@ function setStatus(message: string) {
 function render() {
   const frame = current();
   const view = element("section", `view view-${frame.route}`);
-  const controls = element("div", "controls");
+  const panel = element("div", "controls");
   const list = element("div", "rows");
+  let rows: Row[];
   detail = undefined;
-  rows = [];
   setStatus("");
-  dashboard.dataset.route = frame.route;
 
   switch (frame.route) {
     case "home":
       view.setAttribute("aria-label", "Home");
       view.append(art("home-orb"));
       rows = [
-        { id: "memory", label: "Memory", run: () => enter("device", "disk") },
-        { id: "music", label: "Music", disabled: true },
-        { id: "live", label: "Xbox Live", disabled: true },
-        { id: "settings", label: "Settings", disabled: true },
+        { id: "memory", label: "Memory", run: () => enter({ route: "device", focus: "disk" }) },
+        { id: "music", label: "Music" },
+        { id: "live", label: "Xbox Live" },
+        { id: "settings", label: "Settings" },
       ];
       break;
     case "device":
@@ -129,36 +127,39 @@ function render() {
       view.append(art("disk-orb"));
       rows = [{
         id: "disk", label: "Xbox Hard Disk",
-        note: "App storage · sample saves", run: () => void openDisk(),
+        note: "Sample saves", run: () => void openDisk(),
       }];
       break;
     case "saves":
       view.append(art("disk-orb"));
-      controls.append(element("h1", "plate-heading", "Xbox Hard Disk"));
+      panel.append(element("h1", "plate-heading", "Saved Games"));
       detail = element("div", "save-detail");
       view.append(detail);
       rows = saves.map(save => ({
         id: save.id, label: save.title, note: `${save.blocks} blocks`,
-        run: () => enter("actions", "remove", save),
+        run: () => enter({ route: "actions", focus: "remove", save }),
       }));
       if (loadFailed) {
         rows = [{ id: "retry", label: "Try again", run: () => void openDisk(true) }];
-        controls.append(element("p", "empty-copy", "The hard disk could not be read."));
+        panel.append(element("p", "panel-copy", "The hard disk could not be read."));
       } else if (!rows.length) {
-        controls.append(element("p", "empty-copy", "There are no saved games on this hard disk."));
+        panel.append(element("p", "panel-copy", "There are no saved games on this hard disk."));
         rows = [{ id: "empty", label: "Back", run: back }];
       }
       break;
-    case "actions":
+    case "actions": {
+      const { save } = frame;
       view.append(art("disk-orb"));
-      controls.append(element("h1", "plate-heading", "Save actions"),
-        element("p", "save-name", frame.save!.name));
+      panel.append(element("h1", "plate-heading", save.title),
+        element("p", "panel-copy", save.name));
       rows = [
-        { id: "remove", label: "Remove save", run: () => enter("confirm", "cancel", frame.save) },
+        { id: "remove", label: "Remove save", run: () => enter({ route: "confirm", focus: "cancel", save }) },
         { id: "cancel", label: "Cancel", run: back },
       ];
       break;
-    case "confirm":
+    }
+    case "confirm": {
+      const { save } = frame;
       view.setAttribute("role", "alertdialog");
       view.setAttribute("aria-modal", "true");
       view.setAttribute("aria-labelledby", "remove-heading");
@@ -166,26 +167,28 @@ function render() {
       view.append(art("disk-orb"));
       const heading = element("h1", "plate-heading", "Remove saved game?");
       heading.id = "remove-heading";
-      const copy = element("p", "save-name", `${frame.save!.name} will be permanently removed.`);
+      const copy = element("p", "panel-copy", `“${save.name}” will be permanently removed.`);
       copy.id = "remove-copy";
-      controls.append(heading, copy);
+      panel.append(heading, copy);
       rows = [
         { id: "cancel", label: "Cancel", run: back },
-        { id: "confirm", label: "Remove", run: () => void remove(frame.save!.id) },
+        { id: "confirm", label: "Remove", run: () => void remove(save.id) },
       ];
       break;
+    }
   }
 
   if (!rows.some(row => row.id === frame.focus)) frame.focus = rows[0].id;
-  rowElements = rows.map(row => {
+  controls = rows.map(row => {
     const button = element("button", "blade");
     button.type = "button";
-    if (row.disabled) button.setAttribute("aria-disabled", "true");
+    if (!row.run) button.setAttribute("aria-disabled", "true");
     if (frame.route === "home") button.append(art("pod"));
     const label = element("span", "blade-label", row.label);
     if (frame.route === "home") label.dataset.glyph = row.id;
     button.append(label);
     if (row.note) button.append(element("span", "blade-note", row.note));
+    if (!row.run) button.append(element("span", "blade-note", "Unavailable"));
     button.addEventListener("click", () => {
       if (busy || transition) return;
       frame.focus = row.id;
@@ -198,54 +201,60 @@ function render() {
         syncFocus();
       }
     });
-    return button;
+    return { row, button };
   });
-  list.append(...rowElements);
-  controls.append(list);
-  view.append(controls);
+  list.append(...controls.map(({ button }) => button));
+  panel.append(list);
+  view.append(panel);
   const prompts = element("div", "prompts");
   if (frame.route !== "home") prompts.append(prompt("Back", "B", () => act("back")));
-  prompts.append(prompt("Select", "A", () => act("confirm")));
+  selectPrompt = prompt("Select", "A", () => act("confirm"));
+  prompts.append(selectPrompt);
   view.append(prompts);
+  (frame.route === "confirm" ? panel : view).append(status);
   scene.replaceChildren(view);
   syncFocus(true);
 }
 
-async function animateChange(change: () => void, returning = false) {
+async function animateChange(change: () => void, returning = false, modal = false) {
   transition = true;
   scene.inert = true;
   input.block();
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const scale = returning ? .65 : 1.55;
-  await scene.animate([
-    { transform: "scale(1)", opacity: 1 },
-    { transform: `scale(${reduced ? 1 : scale})`, opacity: 0 },
-  ], { duration: reduced ? 60 : 250, easing: "cubic-bezier(.42,0,.7,1)" }).finished;
-  change();
-  render();
-  await scene.animate([
-    { transform: `scale(${reduced ? 1 : returning ? 1.34 : .76})`, opacity: 0 },
-    { transform: "scale(1)", opacity: 1 },
-  ], { duration: reduced ? 70 : 400, easing: "cubic-bezier(.18,.72,.26,1)" }).finished;
-  transition = false;
-  scene.inert = false;
-  input.block();
-  syncFocus(true);
+  const depth = !reduced && !modal;
+  try {
+    await scene.animate([
+      { transform: "scale(1)", opacity: 1 },
+      { transform: `scale(${depth ? (returning ? .65 : 1.55) : 1})`, opacity: 0 },
+    ], { duration: reduced ? 60 : modal ? 85 : 250, easing: "cubic-bezier(.32,.72,0,1)" }).finished.catch(() => {});
+    change();
+    render();
+    await scene.animate([
+      { transform: `scale(${depth ? (returning ? 1.34 : .76) : 1})`, opacity: 0 },
+      { transform: "scale(1)", opacity: 1 },
+    ], { duration: reduced ? 70 : modal ? 125 : 400, easing: "cubic-bezier(.18,.72,.26,1)" }).finished.catch(() => {});
+  } finally {
+    transition = false;
+    scene.inert = false;
+    input.block();
+    syncFocus(true);
+  }
 }
 
-function enter(route: Route, focus: string, save?: Save) {
+function enter(frame: Frame) {
   play("in");
-  void animateChange(() => stack.push({ route, focus, save }));
+  void animateChange(() => stack.push(frame), false, frame.route === "confirm");
 }
 
 function back() {
   if (stack.length < 2) return;
   play("out");
-  void animateChange(() => stack.pop(), true);
+  void animateChange(() => stack.pop(), true, current().route === "confirm");
 }
 
 async function openDisk(retry = false) {
   busy = true;
+  setStatus("Reading the hard disk…");
   try {
     saves = await invoke<Save[]>("list_saves");
     loadFailed = false;
@@ -259,19 +268,20 @@ async function openDisk(retry = false) {
     render();
   } else {
     play("disk");
-    enter("saves", saves[0]?.id ?? "empty");
+    enter({ route: "saves", focus: saves[0]?.id ?? "empty" });
   }
 }
 
 async function remove(id: string) {
   busy = true;
-  setStatus("");
+  setStatus("Removing the saved game…");
   const index = saves.findIndex(save => save.id === id);
   try {
     saves = await invoke<Save[]>("remove_save", { id });
     play("remove");
     const list = stack[stack.length - 3];
     list.focus = saves[index]?.id ?? saves[index - 1]?.id ?? "empty";
+    setStatus("");
     void animateChange(() => stack.splice(-2, 2), true);
   } catch (error) {
     setStatus(typeof error === "string" ? error : "Could not remove the save. Try again.");
@@ -285,8 +295,8 @@ function move(direction: Direction) {
   const horizontal = frame.route === "confirm";
   if (horizontal !== (direction === "left" || direction === "right")) return;
   const step = direction === "up" || direction === "left" ? -1 : 1;
-  const index = rows.findIndex(row => row.id === frame.focus);
-  const next = rows[index + step];
+  const index = controls.findIndex(({ row }) => row.id === frame.focus);
+  const next = controls[index + step]?.row;
   if (!next) return;
   play(frame.route === "home" ? direction === "up" ? "up" : "down" : "move");
   frame.focus = next.id;
@@ -297,7 +307,7 @@ function act(action: Action) {
   if (transition || busy || !document.hasFocus()) return;
   if (sounds.ambient.paused) play("ambient");
   if (action === "confirm") {
-    const row = rows.find(row => row.id === current().focus);
+    const row = controls.find(({ row }) => row.id === current().focus)?.row;
     if (row?.run) {
       play("select");
       row.run();
@@ -336,6 +346,10 @@ window.addEventListener("blur", () => {
 });
 window.addEventListener("focus", () => {
   if (!transition) syncFocus(true);
+});
+document.addEventListener("mousedown", event => {
+  // Keep middle-click from starting browser autoscroll in a dashboard list.
+  if (event.button === 1) event.preventDefault();
 });
 document.addEventListener("pointerdown", () => {
   if (sounds.ambient.paused) play("ambient");

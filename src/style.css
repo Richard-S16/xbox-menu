@@ -3,9 +3,15 @@
   font-family: "Segoe UI", Arial, sans-serif;
   color: #cee78b;
   background: #030702;
+  user-select: none;
+  overscroll-behavior: none;
+  --focus-edge: #dcf55b;
+  --focus-ink: #071c04;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { display: grid; place-items: center; min-height: 100dvh; margin: 0; overflow: hidden; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
@@ -38,7 +44,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   transform-origin: 48% 47%;
 }
 .view { z-index: 1; }
-.art { position: absolute; pointer-events: none; user-select: none; }
+.art { position: absolute; pointer-events: none; }
 .home-orb {
   width: 43%;
   height: 92%;
@@ -54,7 +60,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   animation: orb-breathe 10s ease-in-out infinite alternate;
 }
 .view-device .disk-orb { width: 49%; left: 25.5%; top: 3%; }
-.view-confirm .disk-orb { filter: brightness(.53); }
+.view-saves .disk-orb, .view-actions .disk-orb { top: 10%; }
+.view-confirm { background: #030902b8; }
+.view-confirm .disk-orb { opacity: .29; animation: none; }
 
 .controls {
   position: absolute;
@@ -76,8 +84,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .view-home .controls {
   left: 49.7%;
-  top: 19.5%;
-  width: 34%;
+  top: 24%;
+  width: 35.3%;
   padding: 0;
   overflow: visible;
   clip-path: none;
@@ -87,21 +95,31 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .view-device .controls {
   top: auto;
   bottom: 15.5%;
-  left: 34.5%;
-  width: 31%;
+  left: 33%;
+  width: 34%;
   padding: 0;
   background: none;
   clip-path: none;
+}
+.view-confirm .controls {
+  top: 48%;
+  left: 50%;
+  width: clamp(320px, 43%, 620px);
+  max-width: 88%;
+  translate: -50% -50%;
+  padding: max(16px, 2cqw) max(20px, 2.5cqw);
+  background: linear-gradient(155deg, #92a842, #2b4715 52%, #6c8a2b);
 }
 
 .plate-heading {
   margin: 0 0 1.05cqw;
   color: #c9e66f;
-  font-size: 2.13cqw;
+  font-size: max(17px, 2.13cqw);
   font-weight: 700;
   line-height: 1.17;
   text-transform: uppercase;
   letter-spacing: .045em;
+  overflow-wrap: anywhere;
 }
 .rows {
   display: grid;
@@ -118,6 +136,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   gap: 1.85cqw;
 }
 .view-confirm .rows { grid-template-columns: 1fr 1fr; }
+.view-confirm .blade { min-height: max(32px, 3.65cqw); }
 
 .blade {
   --edge: #426b16;
@@ -136,7 +155,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   text-align: left;
   background: none;
   color: #c0db73;
+  transition: scale 140ms var(--ease-out);
 }
+.blade:not([aria-disabled]):active, .prompt:active { scale: .975; }
+.blade[aria-disabled] { cursor: default; }
 .blade::before, .blade::after {
   content: "";
   position: absolute;
@@ -148,19 +170,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .blade::after { inset: 1px; background: var(--face); }
 .blade.focused {
-  --edge: #dcf55b;
+  --edge: var(--focus-edge);
   --face: linear-gradient(180deg, #c5d726 0%, #9ca914 13%, #82970c 42%, #91ab17 69%, #c5dd38 100%);
-  color: #071c04;
+  color: var(--focus-ink);
 }
-.blade-label { min-width: 0; font-size: 1.62cqw; font-weight: 600; }
-.blade-note { flex-shrink: 0; font-size: 1.04cqw; }
-.view-home .blade-note { display: none; }
+.blade-label { min-width: 0; font-size: max(12px, 1.62cqw); font-weight: 600; overflow-wrap: anywhere; }
+.blade-note { flex-shrink: 0; font-size: max(10px, 1.1cqw); font-variant-numeric: tabular-nums; }
 
 .view-home .blade {
-  min-height: 3.45cqw;
+  min-height: max(23px, 3.65cqw);
   --face: linear-gradient(130deg, #1a3c087d, #315c158e);
   --edge: #76a12660;
 }
+.view-home .blade[aria-disabled]:not(.focused) {
+  --edge: #71944953;
+  --face: linear-gradient(130deg, #142c08b8, #213b0c99);
+  color: #bdd190;
+}
+.view-home .blade-note { font-size: max(10px, .99cqw); }
 .view-home .blade.focused {
   --edge: #c2dd2d;
   --face: linear-gradient(180deg, #a9b918 0%, #82900b 19%, #728600 62%, #b8ce28 100%);
@@ -207,28 +234,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: #d7e6aa;
 }
 .view-device .blade-label {
-  font-size: 1.95cqw;
+  font-size: max(14px, 1.95cqw);
   text-transform: uppercase;
   letter-spacing: .06em;
 }
-.view-device .blade-note { color: #b4ce72; }
-.empty-copy, .save-name {
-  margin: .35cqw 0 1.1cqw;
-  line-height: 1.35;
-  font-size: 1.45cqw;
+.view-device .blade.focused {
+  --edge: var(--focus-edge);
+  --face: linear-gradient(175deg, #617d1b, #234504 57%, #102d04);
+}
+.view-device .blade-note { color: #d3e898; }
+.panel-copy {
+  margin: .35cqw 0 max(8px, 1.15cqw);
+  line-height: 1.4;
+  font-size: max(12px, 1.45cqw);
+  color: #d1e3a0;
+  overflow-wrap: anywhere;
 }
 .save-detail {
   position: absolute;
-  top: 70%;
-  left: 17%;
+  bottom: 17%;
+  left: 15%;
   display: grid;
-  gap: .2cqw;
-  max-width: 25%;
-  font-size: 1.34cqw;
-  line-height: 1.22;
+  gap: .25cqw;
+  max-width: 28%;
+  padding: .8cqw 1.4cqw 1cqw;
+  border: 1px solid #668c29;
+  background: #0d2108ed;
+  font-size: max(10px, 1.16cqw);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
   color: #bfd882;
 }
-.save-detail strong { color: #d5e9aa; }
+.save-detail strong { color: #d5e9aa; font-size: max(12px, 1.4cqw); }
 
 .prompts { position: absolute; inset: auto 16% 7% 16%; }
 .prompt {
@@ -241,10 +278,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: none;
   background: none;
   color: #b6d94f;
-  font-size: 1.25cqw;
+  font-size: max(10px, 1.25cqw);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .07em;
+  transition: scale 140ms var(--ease-out);
 }
 .prompt-b { left: 0; flex-direction: row-reverse; }
 .prompt-a { right: 0; }
@@ -259,7 +297,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-size: 1.7cqw;
   letter-spacing: 0;
 }
-.prompt:hover .badge, .prompt:focus-visible .badge { border-color: #ebff85; }
+.prompt:focus-visible .badge { border-color: #ebff85; }
+
+@media (hover: hover) and (pointer: fine) {
+  .blade:not(.focused):not([aria-disabled]):hover { --edge: #91ba3f; }
+  .prompt:hover .badge { border-color: #ebff85; }
+}
 
 #status {
   position: absolute;
@@ -268,8 +311,15 @@ button { font: inherit; color: inherit; cursor: pointer; }
   margin: 0;
   text-align: center;
   color: #b6cf82;
-  font-size: 1.02cqw;
+  font-size: max(11px, 1.15cqw);
   pointer-events: none;
+}
+.view-confirm #status {
+  position: static;
+  margin: max(8px, .8cqw) 0 0;
+  color: #d1e3a0;
+  line-height: 1.35;
+  text-align: left;
 }
 
 @keyframes orb-breathe {
@@ -279,6 +329,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes pulse { from { opacity: .35; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .art, .scene-background::after { animation: none; }
+  .blade, .prompt { transition: none; }
+  .blade:active, .prompt:active { scale: 1 !important; }
 }
 @media (forced-colors: active) {
   .blade.focused { outline: 2px solid Highlight; outline-offset: -2px; }
