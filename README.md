@@ -1,4 +1,7 @@
-# xbox-menu
+# Xbox Menu
+
+<img width="1146" height="678" alt="Menu" src="https://github.com/user-attachments/assets/bcfd195d-f95f-4d99-9418-0884a2475b42" />
+
 
 A native desktop recreation of the original Xbox dashboard, using Tauri, Rust, and TypeScript.
 
