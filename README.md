@@ -1,6 +1,6 @@
 # Xbox Menu
 
-<img width="1146" height="678" alt="Menu" src="https://github.com/user-attachments/assets/bcfd195d-f95f-4d99-9418-0884a2475b42" />
+<img width="1152" height="682" alt="Menu" src="https://github.com/user-attachments/assets/8981061a-4ebe-401a-9280-57f17118e243" />
 
 
 A recreation of the original Xbox dashboard, available as a **web app** and a **native Windows desktop app**. Both share the TypeScript dashboard; the desktop app uses Tauri and Rust.
