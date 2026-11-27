@@ -3,7 +3,7 @@
 <img width="1146" height="678" alt="Menu" src="https://github.com/user-attachments/assets/bcfd195d-f95f-4d99-9418-0884a2475b42" />
 
 
-A native desktop recreation of the original Xbox dashboard, using Tauri, Rust, and TypeScript.
+A recreation of the original Xbox dashboard, available as a **web app** and a **native Windows desktop app**. Both share the TypeScript dashboard; the desktop app uses Tauri and Rust.
 
 - [V1 spec](docs/spec.md)
 - [Implementation plan](docs/implementation-plan.md)
@@ -11,7 +11,20 @@ A native desktop recreation of the original Xbox dashboard, using Tauri, Rust, a
 - [Dashboard research](docs/research/dashboard-sources.md)
 - [Glossary](GLOSSARY.md)
 
-## Run the dashboard on Windows
+## Web app
+
+With Node.js 22.12+ (or 24+):
+
+```sh
+npm ci
+npm run dev
+```
+
+Open `http://localhost:1420`. To deploy on Vercel, import this repository and use the **Vite** preset with the repository root, `npm run build`, and `dist` as the output directory. The site is static and needs no environment variables or backend.
+
+Use the keyboard, mouse, or a browser-supported standard gamepad. Sample saves and settings stay in that browser for the site's origin. Music plays from files you select for the current session; the app never uploads them. Enter fullscreen from **Settings → Video** where the browser supports it.
+
+## Native Windows desktop app
 
 With Node.js 22.12+ (or 24+), Rust, Visual Studio C++ build tools, and WebView2 installed:
 

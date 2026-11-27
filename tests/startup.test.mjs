@@ -29,6 +29,16 @@ test("the intro hands off on natural end, media error, or autoplay rejection", a
   assert.equal(rejected.paused, true);
 });
 
+test("the intro retries muted when the browser blocks autoplay with sound", async () => {
+  const video = new Clip();
+  video.play = async () => {
+    if (!video.muted) throw new DOMException("Gesture required", "NotAllowedError");
+    video.dispatchEvent(new Event("ended"));
+  };
+  assert.equal(await playIntro(video, new AbortController().signal), false);
+  assert.equal(video.muted, true);
+});
+
 test("holding the keyboard or controller skip does not confirm on Home", async () => {
   for (const device of ["keyboard", "controller"]) {
     const skip = new AbortController();
