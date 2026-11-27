@@ -192,6 +192,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn video_and_audio_preferences_survive_reopening_and_a_failed_write() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("dashboard.json");
+        let store = Store::new(directory.path().into());
+        assert!(!store.read().unwrap().preferences.fullscreen);
+        store
+            .update(|data| {
+                data.preferences.fullscreen = true;
+                data.preferences.reduced_motion = true;
+                data.preferences.muted = true;
+                Ok(())
+            })
+            .unwrap();
+        let saved = fs::read(&path).unwrap();
+        let reopened = Store::new(directory.path().into());
+        let prefs = reopened.read().unwrap().preferences;
+        assert!(prefs.fullscreen && prefs.reduced_motion && prefs.muted);
+
+        // Block the lock file so the update cannot write, even when run as administrator.
+        fs::remove_file(directory.path().join("dashboard.lock")).unwrap();
+        fs::create_dir(directory.path().join("dashboard.lock")).unwrap();
+        assert!(
+            reopened
+                .update(|data| {
+                    data.preferences.muted = false;
+                    Ok(())
+                })
+                .is_err()
+        );
+        assert_eq!(fs::read(path).unwrap(), saved);
+    }
+
+    #[test]
     fn legacy_spanish_preference_reopens_as_portuguese() {
         let mut saved = serde_json::to_value(Preferences::default()).unwrap();
         saved["language"] = "es".into();

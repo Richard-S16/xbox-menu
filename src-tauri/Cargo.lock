@@ -4611,7 +4611,7 @@ dependencies = [
 
 [[package]]
 name = "xbox-menu"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "http-range",
  "serde",

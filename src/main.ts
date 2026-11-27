@@ -1,7 +1,9 @@
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Input, type Action, type Direction, type PadState } from "./input.ts";
+import { nextFocus } from "./navigation.ts";
 import { Player, type Track } from "./player.ts";
+import { playIntro } from "./startup.ts";
 import { text, type Language, type Text } from "./strings.ts";
 import "./style.css";
 
@@ -26,6 +28,9 @@ type Row = {
 const dashboard = document.querySelector<HTMLElement>("#dashboard")!;
 const scene = document.querySelector<HTMLElement>("#scene")!;
 const status = document.querySelector<HTMLElement>("#status")!;
+const startup = document.querySelector<HTMLElement>("#startup")!;
+const intro = startup.querySelector("video")!;
+const skipIntro = new AbortController();
 const stack: Frame[] = [{ route: "home", focus: "music" }];
 const current = () => stack.at(-1)!;
 const input = new Input(act);
@@ -69,6 +74,9 @@ function applyPreferences() {
     sound.muted = preferences.muted;
   }
   player.setVolume(preferences.volume / 100, preferences.muted);
+  intro.volume = preferences.volume / 100;
+  intro.muted = preferences.muted;
+  if (startup.isConnected && reducedMotion()) skipIntro.abort();
 }
 
 const cueVolumes = {
@@ -122,9 +130,10 @@ function prompt(label: string, glyph: "A" | "B", run: () => void) {
 function syncFocus(restoreScroll = false) {
   const frame = current();
   const selected = controls.find(control => control.row.id === frame.focus);
+  const canFocus = !scene.inert;
   if (!selected) {
     selectPrompt.hidden = true;
-    if (!transition && backPrompt) backPrompt.focus({ preventScroll: true });
+    if (canFocus) backPrompt?.focus({ preventScroll: true });
     return;
   }
   if (frame.route === "player" && selected.row.track !== undefined && frame.track !== selected.row.track) {
@@ -144,7 +153,7 @@ function syncFocus(restoreScroll = false) {
   }
   selectPrompt.hidden = !selected.row.run;
   selectPrompt.querySelector(".prompt-label")!.textContent = selected.row.icon ? selected.row.label : t("Select");
-  if (!transition) {
+  if (canFocus) {
     const button = selected.button;
     const list = button.parentElement!;
     button.focus({ preventScroll: true });
@@ -254,7 +263,7 @@ function settingsRows(route: Setting, panel: HTMLElement): Row[] {
     case "video":
       return [
         { id: "fullscreen", label: t("Window Mode"), note: windowMode(),
-          run: () => void changePreferences({ fullscreen: !preferences.fullscreen }) },
+          run: toggleFullscreen },
         { id: "motion", label: t("Reduced Motion"), note: onOff(preferences.reducedMotion),
           pressed: preferences.reducedMotion,
           run: () => void changePreferences({ reducedMotion: !preferences.reducedMotion }) },
@@ -782,36 +791,29 @@ async function changePreferences(patch: Partial<Preferences>) {
   }
 }
 
+function toggleFullscreen() {
+  void changePreferences({ fullscreen: !preferences.fullscreen });
+}
+
 function move(direction: Direction) {
   const frame = current();
-  const horizontal = direction === "left" || direction === "right";
-  const step = direction === "up" || direction === "left" ? -1 : 1;
   const rows = controls.map(({ row }) => row);
-  const selected = rows.find(row => row.id === frame.focus);
-  if (!selected) return;
-  let next: Row | undefined;
-  if (frame.route === "player") {
-    const group = rows.filter(row => row.group === selected.group);
-    if (selected.group === "transport") {
-      if (horizontal) next = group[group.indexOf(selected) + step];
-      if (!next && (direction === "up" || direction === "left")) next = rows.find(row => row.id === trackRowId(frame.track!));
-    } else if (!horizontal) {
-      next = group[group.indexOf(selected) + step];
-      if (!next && direction === "down") next = rows.find(row => row.id === "play");
-    } else if (direction === "right") {
-      next = rows.find(row => row.id === "play");
-    }
-  } else if (isModal(frame.route) === horizontal) {
-    next = rows[rows.indexOf(selected) + step];
-  }
+  const layout = frame.route === "player" ? "player" : isModal(frame.route) ? "confirmation" : "list";
+  const track = frame.route === "player" && frame.track !== undefined ? trackRowId(frame.track) : undefined;
+  const next = nextFocus(rows, frame.focus, direction, layout, track);
   if (!next) return;
   play(frame.route === "home" ? direction === "up" ? "up" : "down" : "move");
-  frame.focus = next.id;
+  frame.focus = next;
   syncFocus();
 }
 
 function act(action: Action) {
-  if (transition || busy || !document.hasFocus()) return;
+  if (!document.hasFocus()) return;
+  if (startup.isConnected) {
+    if (action === "confirm" || action === "back") skipIntro.abort();
+    return;
+  }
+  if (transition || busy) return;
   if (sounds.ambient.paused) play("ambient");
   if (action === "confirm") {
     const row = controls.find(({ row }) => row.id === current().focus)?.row;
@@ -834,7 +836,7 @@ function act(action: Action) {
 window.addEventListener("keydown", event => {
   if (event.code === "F11" && !event.altKey && !event.metaKey && !event.ctrlKey) {
     event.preventDefault();
-    if (!event.repeat && native) void changePreferences({ fullscreen: !preferences.fullscreen });
+    if (!event.repeat && native && !startup.isConnected) toggleFullscreen();
     return;
   }
   if (event.code === "Tab" && isModal(current().route)) {
@@ -859,7 +861,9 @@ window.addEventListener("blur", () => {
   sounds.ambient.pause();
 });
 window.addEventListener("focus", () => {
+  if (startup.isConnected) return;
   if (!transition) syncFocus(true);
+  if (native && sounds.ambient.paused) play("ambient");
   if (native && !transition && !busy && current().route === "player") void refreshTrackAvailability();
 });
 document.addEventListener("mousedown", event => {
@@ -867,13 +871,32 @@ document.addEventListener("mousedown", event => {
   if (event.button === 1) event.preventDefault();
 });
 document.addEventListener("pointerdown", () => {
-  if (sounds.ambient.paused) play("ambient");
+  if (!startup.isConnected && sounds.ambient.paused) play("ambient");
 }, { passive: true });
 
-applyPreferences();
-render();
 systemMotion.addEventListener("change", applyPreferences);
 window.setInterval(updateClock, 1000);
+let visibilityCheck = 0;
+async function syncVisibility() {
+  const check = ++visibilityCheck;
+  const minimized = await desktop?.isMinimized().catch(() => false);
+  if (check === visibilityCheck) {
+    dashboard.toggleAttribute("data-hidden", document.hidden || Boolean(minimized));
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) dashboard.setAttribute("data-hidden", "");
+  void syncVisibility();
+});
+if (desktop) {
+  void Promise.all([
+    desktop.onResized(syncVisibility),
+    desktop.onFocusChanged(syncVisibility),
+  ]).catch(error => console.error("Could not watch window visibility.", error));
+}
+void syncVisibility();
+
 if (native) {
   const controller = new Channel<PadState | null>();
   controller.onmessage = pad => {
@@ -887,30 +910,63 @@ if (native) {
   void invoke("watch_controller", { onState: controller }).catch(error => {
     console.error("Controller input could not be initialized.", error);
   });
-  void bootstrap();
 }
+void startDashboard();
 
-async function bootstrap() {
-  busy = true;
-  let message = "";
+async function restoreDashboard() {
+  if (!desktop) return "";
   try {
     const initial = await invoke<{ preferences: Preferences | null; version: string; saves: Save[] | null }>("bootstrap");
-    if (initial.preferences) preferences = initial.preferences;
-    else message = t("Could not read dashboard settings.");
     version = initial.version;
     saves = initial.saves ?? [];
-    applyPreferences();
-    if (preferences.fullscreen && desktop) {
-      await desktop.setFullscreen(true).catch(() => { message = t("Could not change the window mode."); });
-    }
+    if (!initial.preferences) return t("Could not read dashboard settings.");
+    preferences = initial.preferences;
   } catch {
-    message = t("Could not read dashboard settings.");
-  } finally {
-    busy = false;
-    input.block();
-    render();
-    setStatus(message);
+    return t("Could not read dashboard settings.");
   }
+  if (preferences.fullscreen) {
+    try {
+      await desktop.setFullscreen(true);
+    } catch {
+      preferences.fullscreen = false;
+      return t("Could not change the window mode.");
+    }
+  }
+  return "";
+}
+
+async function startDashboard() {
+  const message = await restoreDashboard();
+  applyPreferences();
+  render();
+  setStatus(message);
+  const homeArt = Promise.allSettled(Array.from(scene.querySelectorAll("img"), image => image.decode()));
+  if (!skipIntro.signal.aborted) {
+    const skipButton = prompt(t("Skip Intro"), "A", () => skipIntro.abort());
+    skipButton.tabIndex = 0;
+    skipButton.setAttribute("aria-keyshortcuts", "Enter Escape");
+    const key = element("kbd", "startup-key", "Enter");
+    key.setAttribute("aria-hidden", "true");
+    skipButton.append(key);
+    startup.querySelector("#startup-loading")?.remove();
+    startup.append(skipButton);
+    if (document.hasFocus()) skipButton.focus({ preventScroll: true });
+  }
+  const [skipped] = await Promise.all([playIntro(intro, skipIntro.signal), homeArt]);
+  // Let the decoded Home scene paint behind the intro before taking it away.
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  if (skipped && !reducedMotion()) {
+    await startup.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 150, easing: "cubic-bezier(.23,1,.32,1)", fill: "forwards",
+    }).finished.catch(() => {});
+  }
+  startup.remove();
+  intro.removeAttribute("src");
+  intro.load();
+  input.block();
+  scene.inert = false;
+  syncFocus(true);
+  if (native && document.hasFocus()) play("ambient");
 }
 function tick(now: number) {
   input.tick(now);

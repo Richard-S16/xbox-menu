@@ -8,8 +8,12 @@
   <body>
     <main id="dashboard" aria-label="Xbox dashboard">
       <div class="scene-background" aria-hidden="true"></div>
-      <div id="scene"></div>
-      <p id="status" role="status">Loading dashboard…</p>
+      <div id="scene" inert></div>
+      <p id="status" role="status" hidden></p>
+      <div id="startup">
+        <p id="startup-loading" role="status">Loading dashboard…</p>
+        <video playsinline aria-hidden="true"></video>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

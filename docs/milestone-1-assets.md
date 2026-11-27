@@ -22,3 +22,7 @@ Compared with the [retail footage](research/dashboard-sources.md#what-the-releas
 | `live-mark.webp` | Original Xbox Live wordmark isolated from the [Insignia walkthrough capture](../reference/released-dashboard/06-xbox-live-home-via-insignia.png). |
 
 Music and Settings composite these stills with live controls. The original music visualizer, per-category Settings artwork, and Xbox Live shell geometry are fidelity gaps. The offline Xbox Live content and desktop settings are specific to this app.
+
+## Milestone 3 addition
+
+`xbox-boot.mp4` is the [original Xbox boot clip bundled by Theseus](https://github.com/MrMilenko/Theseus/blob/9f2a46aed3983837cdc6dc8264bc18dfc77001ef/Configs/xbox_boot.mp4), copied byte-for-byte. The handoff follows [ogxweb’s boot sequence](research/dashboard-sources.md#ogxweb-browser-techniques-and-deviations): let the clip end on black, preload Home behind it, and fade out briefly on a skip. The clip retains its aspect ratio and plays locally with the saved volume and mute settings. Reduced motion bypasses it.
