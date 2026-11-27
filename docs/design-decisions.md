@@ -23,7 +23,7 @@ Milestone 1 is controller-navigable Home and the complete Memory round trip with
 - **Memory:** app-owned sample saves only. Confirmed removal persists across launches; no browsing PC drives or deleting outside the app.
 - **Music:** add local audio files through a native picker and play them from a soundtrack. Persist references without copying files. Mark missing tracks unavailable and allow removal or re-adding.
 - **Clock:** show the PC clock and persist the dashboard's 12/24-hour format. Do not set system time.
-- **Language:** English by default, with a persisted choice of English or Spanish.
+- **Language:** English by default, with a persisted choice of English or Brazilian Portuguese.
 - **Audio and Video:** persist dashboard volume, mute, display mode, and reduced motion. These preferences affect only the app.
 - **System Info:** show the desktop app version and its retail reference. **Xbox Live** stays offline and never asks for credentials.
 

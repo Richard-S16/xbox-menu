@@ -12,3 +12,13 @@ The bundle uses offline assets. It does not load ogxweb or require a network con
 | `ambient.wav` | [Theseus `AMB_05_ENGINEROOM_LR.wav`](https://github.com/MrMilenko/Theseus/blob/9f2a46aed3983837cdc6dc8264bc18dfc77001ef/Data/Audio/AmbientAudio/AMB_05_ENGINEROOM_LR.wav). |
 
 Compared with the [retail footage](research/dashboard-sources.md#what-the-released-dashboard-shows), Home preserves the orb, pods, labels, and focused strip, and Memory retains the hard disk artwork and device-to-save hierarchy. The orb crops are composited with live controls; the source meshes, original Memory list font/layout, full ambient layering, and original 3D tunnel are not reproduced. The first transition uses forward/reverse depth scaling through the orb with the original cues. Its timing and the analog thresholds are review targets.
+
+## Milestone 2 additions
+
+| Bundled asset | Source |
+| --- | --- |
+| `music-orb.webp` | Orb isolated from the [released Music player capture](../reference/released-dashboard/02-music-player.webp). |
+| `clock-orb.webp` | Clock isolated from the [released Settings index capture](../reference/released-dashboard/04-settings-index.webp). |
+| `live-mark.webp` | Original Xbox Live wordmark isolated from the [Insignia walkthrough capture](../reference/released-dashboard/06-xbox-live-home-via-insignia.png). |
+
+Music and Settings composite these stills with live controls. The original music visualizer, per-category Settings artwork, and Xbox Live shell geometry are fidelity gaps. The offline Xbox Live content and desktop settings are specific to this app.

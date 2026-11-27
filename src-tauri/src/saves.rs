@@ -1,9 +1,6 @@
+use crate::storage;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, File},
-    io::{self, Write},
-    path::PathBuf,
-};
+use std::{fs, io, path::PathBuf};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Save {
@@ -23,12 +20,12 @@ impl Store {
     }
 
     pub fn list(&self) -> io::Result<Vec<Save>> {
-        let _guard = self.lock()?;
+        let _guard = storage::lock(&self.directory, "memory.lock")?;
         self.load()
     }
 
     pub fn remove(&self, id: &str) -> io::Result<Vec<Save>> {
-        let _guard = self.lock()?;
+        let _guard = storage::lock(&self.directory, "memory.lock")?;
         let mut saves = self.load()?;
         // A retry after a successful removal returns the current list.
         if let Some(index) = saves.iter().position(|save| save.id == id) {
@@ -36,18 +33,6 @@ impl Store {
             self.write(&saves)?;
         }
         Ok(saves)
-    }
-
-    fn lock(&self) -> io::Result<File> {
-        fs::create_dir_all(&self.directory)?;
-        let file = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(self.directory.join("memory.lock"))?;
-        file.lock()?;
-        Ok(file)
     }
 
     fn load(&self) -> io::Result<Vec<Save>> {
@@ -73,12 +58,7 @@ impl Store {
     }
 
     fn write(&self, saves: &[Save]) -> io::Result<()> {
-        let mut file = tempfile::NamedTempFile::new_in(&self.directory)?;
-        serde_json::to_writer(&mut file, saves).map_err(io::Error::other)?;
-        file.flush()?;
-        file.as_file().sync_all()?;
-        file.persist(self.directory.join("memory.json"))?;
-        Ok(())
+        storage::write(&self.directory.join("memory.json"), saves)
     }
 }
 
