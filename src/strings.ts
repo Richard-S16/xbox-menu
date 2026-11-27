@@ -17,6 +17,7 @@ const portuguese = {
   "There are no saved games on this hard disk.": "Não há jogos salvos neste disco rígido.",
   "Back": "Voltar",
   "Select": "Selecionar",
+  "Skip Intro": "Pular introdução",
   "Cancel": "Cancelar",
   "Remove": "Remover",
   "Remove save": "Excluir jogo salvo",

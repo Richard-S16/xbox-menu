@@ -20,8 +20,8 @@ npm ci
 npm run tauri dev
 ```
 
-To create an installer, run `npm run tauri build`. On Home, move up from Music to **Memory** and select **Xbox Hard Disk**. Open any sample save to try its actions. Use the D-pad, left stick, or arrow keys to move, **A / Enter** to select, and **B / Escape** to go back. In a removal confirmation, move right from **Cancel** to **Remove**. Confirmed removals persist in the app's own save store.
+To create an installer, run `npm run tauri build`. Skip the startup animation with **A / Enter** or **B / Escape**. On Home, move up from Music to **Memory** and select **Xbox Hard Disk**. Open any sample save to try its actions. Use the D-pad, left stick, or arrow keys to move, **A / Enter** to select, and **B / Escape** to go back. In a removal confirmation, move right from **Cancel** to **Remove**. Confirmed removals persist in the app's own save store.
 
 In **Music**, use **Add Tracks** to select local MP3 or WAV files. In the soundtrack, move right from the track list to reach playback controls and **Track Options**. Select an unavailable track to locate its file or remove its reference. **Settings** saves clock, language, audio, and video preferences; **F11** toggles fullscreen. **Xbox Live** is offline.
 
-The original artwork and sounds used by this build are listed in the [asset notes](docs/milestone-1-assets.md).
+See the [asset notes](docs/milestone-1-assets.md) for sources and the [Windows walkthrough](docs/windows-release-walkthrough.md) for release checks.

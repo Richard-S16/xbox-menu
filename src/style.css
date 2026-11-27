@@ -26,6 +26,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 .scene-background, #scene, .view { position: absolute; inset: 0; }
+#startup {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  background: #000;
+}
+#startup video { width: 100%; height: 100%; object-fit: contain; }
+#startup-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: max(12px, 1.4cqw);
+}
+#startup .prompt {
+  right: 16%;
+  bottom: 7%;
+  padding: .45cqw .8cqw;
+  background: #061103eb;
+  color: #d9f28a;
+}
+.startup-key {
+  padding: .12em .45em;
+  border: 1px solid #60773a;
+  border-radius: 3px;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .scene-background {
   background:
     radial-gradient(ellipse at 50% 47%, #06140012 12%, #02070192 68%, #030901 100%),
@@ -471,7 +501,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   to { transform: translateY(-.56cqw) scale(1.026); filter: brightness(1.07); }
 }
 @keyframes pulse { from { opacity: .35; } to { opacity: 1; } }
-[data-reduced-motion] :is(.art, .scene-background::after) { animation: none; }
+:is([data-hidden], #dashboard:has(#startup)) .art,
+:is([data-hidden], #dashboard:has(#startup)) .scene-background::after { animation-play-state: paused; }
+[data-reduced-motion] .art,
+[data-reduced-motion] .scene-background::after { animation: none; }
 [data-reduced-motion] :is(.blade, .prompt) { transition: none; }
 [data-reduced-motion] :is(.blade, .prompt):active { scale: 1 !important; }
 @media (forced-colors: active) {
