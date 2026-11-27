@@ -39,19 +39,11 @@ impl Store {
         match fs::read(self.directory.join("memory.json")) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(io::Error::other),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let saves = [
-                    ("rally", "Rally Championship", "Championship progress", 27),
-                    ("orbit", "Orbital Strike", "Mission checkpoint", 16),
-                    ("street", "Street Circuit", "Time trial records", 9),
-                ]
-                .map(|(id, title, name, blocks)| Save {
-                    id: id.into(),
-                    title: title.into(),
-                    name: name.into(),
-                    blocks,
-                });
+                let saves: Vec<Save> =
+                    serde_json::from_str(include_str!("../../src/sample-saves.json"))
+                        .map_err(io::Error::other)?;
                 self.write(&saves)?;
-                Ok(saves.into())
+                Ok(saves)
             }
             Err(error) => Err(error),
         }

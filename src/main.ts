@@ -1,18 +1,20 @@
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { version as webVersion } from "../package.json";
 import { Input, type Action, type Direction, type PadState } from "./input.ts";
 import { nextFocus } from "./navigation.ts";
 import { Player, type Track } from "./player.ts";
 import { playIntro } from "./startup.ts";
 import { text, type Language, type Text } from "./strings.ts";
+import {
+  listWebSaves, removeWebSave, readWebPreferences, writeWebPreferences,
+  listWebTracks, pickWebTracks, removeWebTrack, resolveWebTrack, readWebGamepad,
+  type Preferences,
+} from "./web.ts";
 import "./style.css";
 
 type Save = { id: string; title: string; name: string; blocks: number };
 type Setting = "clock" | "language" | "audio" | "video" | "system";
-type Preferences = {
-  language: Language; hour24: boolean; volume: number;
-  muted: boolean; fullscreen: boolean; reducedMotion: boolean;
-};
 type Frame = { focus: string; scroll?: number } & (
   { route: "home" | "device" | "saves" | "collection" | "live" | "settings" | Setting }
   | { route: "actions" | "confirm"; save: Save }
@@ -41,7 +43,7 @@ let preferences: Preferences = {
   language: "en", hour24: false, volume: 100, muted: false, fullscreen: false, reducedMotion: false,
 };
 const t = (key: Text, values?: Record<string, string | number>) => text(preferences.language, key, values);
-let version = "";
+let version = webVersion;
 let saves: Save[] = [];
 let tracks: Track[] = [];
 let musicReadFailed = false;
@@ -58,7 +60,10 @@ let clockFormat: Intl.DateTimeFormat;
 let playback: HTMLOutputElement | undefined;
 let playbackProgress: HTMLProgressElement | undefined;
 
-const player = new Player(id => invoke<string>("resolve_track", { id }), playbackChanged, updatePlayback);
+const player = new Player(
+  native ? id => invoke<string>("resolve_track", { id }) : resolveWebTrack,
+  playbackChanged, updatePlayback,
+);
 
 const reducedMotion = () => preferences.reducedMotion || systemMotion.matches;
 
@@ -262,8 +267,9 @@ function settingsRows(route: Setting, panel: HTMLElement): Row[] {
     }
     case "video":
       return [
-        { id: "fullscreen", label: t("Window Mode"), note: windowMode(),
-          run: toggleFullscreen },
+        { id: "fullscreen", label: t("Window Mode"),
+          note: desktop || document.fullscreenEnabled ? windowMode() : t("Unavailable"),
+          run: desktop || document.fullscreenEnabled ? toggleFullscreen : undefined },
         { id: "motion", label: t("Reduced Motion"), note: onOff(preferences.reducedMotion),
           pressed: preferences.reducedMotion,
           run: () => void changePreferences({ reducedMotion: !preferences.reducedMotion }) },
@@ -633,7 +639,7 @@ async function openDisk(retry = false) {
   busy = true;
   setStatus(t("Reading the hard disk…"));
   try {
-    saves = await invoke<Save[]>("list_saves");
+    saves = native ? await invoke<Save[]>("list_saves") : listWebSaves();
     loadFailed = false;
   } catch {
     saves = [];
@@ -654,7 +660,7 @@ async function remove(id: string) {
   setStatus(t("Removing the saved game…"));
   const index = saves.findIndex(save => save.id === id);
   try {
-    saves = await invoke<Save[]>("remove_save", { id });
+    saves = native ? await invoke<Save[]>("remove_save", { id }) : removeWebSave(id);
     play("remove");
     const list = stack[stack.length - 3];
     list.focus = saves[index]?.id ?? saves[index - 1]?.id ?? "empty";
@@ -671,7 +677,7 @@ async function openCollection(retry = false) {
   busy = true;
   setStatus(t("Reading the soundtrack…"));
   try {
-    tracks = native ? await invoke<Track[]>("list_tracks") : [];
+    tracks = await listTracks();
     musicReadFailed = false;
   } catch {
     musicReadFailed = true;
@@ -682,10 +688,14 @@ async function openCollection(retry = false) {
   else enter({ route: "collection", focus: tracks.length ? "soundtrack" : "add" });
 }
 
+function listTracks() {
+  return native ? invoke<Track[]>("list_tracks") : listWebTracks();
+}
+
 async function openPlayer() {
   busy = true;
   try {
-    tracks = await invoke<Track[]>("list_tracks");
+    tracks = await listTracks();
     if (!tracks.length) {
       render();
       return;
@@ -717,9 +727,9 @@ async function pickTracks(replace?: number) {
   busy = true;
   input.block();
   try {
-    const picked = await invoke<Track[] | null>("pick_tracks", {
+    const picked = native ? await invoke<Track[] | null>("pick_tracks", {
       replace: replace ?? null, language: preferences.language,
-    });
+    }) : await pickWebTracks(replace);
     if (!picked) return;
     const firstTracks = !tracks.length && picked.length > 0;
     tracks = picked;
@@ -752,7 +762,7 @@ async function removeTrack(id: number) {
   busy = true;
   const index = tracks.findIndex(track => track.id === id);
   try {
-    tracks = await invoke<Track[]>("remove_track", { id });
+    tracks = native ? await invoke<Track[]>("remove_track", { id }) : removeWebTrack(id);
     failedTracks.delete(id);
     if (player.id === id) player.stop();
     const frame = stack.at(-3)!;
@@ -773,11 +783,19 @@ async function changePreferences(patch: Partial<Preferences>) {
   busy = true;
   let switched = false;
   try {
-    if (patch.fullscreen !== undefined && desktop) {
-      await desktop.setFullscreen(patch.fullscreen);
+    if (patch.fullscreen !== undefined) {
+      if (desktop) await desktop.setFullscreen(patch.fullscreen);
+      else if (patch.fullscreen) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
       switched = true;
     }
-    preferences = native ? await invoke<Preferences>("patch_preferences", { patch }) : { ...preferences, ...patch };
+    if (native) {
+      preferences = await invoke<Preferences>("patch_preferences", { patch });
+    } else {
+      const next = { ...preferences, ...patch, fullscreen: Boolean(document.fullscreenElement) };
+      if (patch.fullscreen === undefined) writeWebPreferences(next);
+      preferences = next;
+    }
     applyPreferences();
     render();
   } catch {
@@ -834,9 +852,9 @@ function act(action: Action) {
 }
 
 window.addEventListener("keydown", event => {
-  if (event.code === "F11" && !event.altKey && !event.metaKey && !event.ctrlKey) {
+  if (native && event.code === "F11" && !event.altKey && !event.metaKey && !event.ctrlKey) {
     event.preventDefault();
-    if (!event.repeat && native && !startup.isConnected) toggleFullscreen();
+    if (!event.repeat && !startup.isConnected) toggleFullscreen();
     return;
   }
   if (event.code === "Tab" && isModal(current().route)) {
@@ -910,11 +928,25 @@ if (native) {
   void invoke("watch_controller", { onState: controller }).catch(error => {
     console.error("Controller input could not be initialized.", error);
   });
+} else {
+  document.addEventListener("fullscreenchange", () => {
+    const fullscreen = Boolean(document.fullscreenElement);
+    if (preferences.fullscreen === fullscreen) return;
+    preferences.fullscreen = fullscreen;
+    if (!busy && !transition && current().route === "video") render();
+  });
 }
 void startDashboard();
 
 async function restoreDashboard() {
-  if (!desktop) return "";
+  if (!desktop) {
+    try {
+      preferences = readWebPreferences(preferences);
+      return "";
+    } catch {
+      return t("Could not read dashboard settings.");
+    }
+  }
   try {
     const initial = await invoke<{ preferences: Preferences | null; version: string; saves: Save[] | null }>("bootstrap");
     version = initial.version;
@@ -969,7 +1001,13 @@ async function startDashboard() {
   if (native && document.hasFocus()) play("ambient");
 }
 function tick(now: number) {
+  if (!native) {
+    const pad = document.hasFocus() ? readWebGamepad(webPadPort) : null;
+    webPadPort = pad?.port;
+    input.controller(pad);
+  }
   input.tick(now);
   requestAnimationFrame(tick);
 }
+let webPadPort: number | undefined;
 requestAnimationFrame(tick);

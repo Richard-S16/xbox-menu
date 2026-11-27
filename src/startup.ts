@@ -16,6 +16,14 @@ export function playIntro(video: HTMLVideoElement, skip: AbortSignal) {
     video.addEventListener("ended", () => finish(), options);
     video.addEventListener("error", () => finish(), options);
     video.src = "./assets/xbox-boot.mp4";
-    void video.play().catch(() => finish());
+    void video.play().catch((error: unknown) => {
+      if (listeners.signal.aborted) return;
+      if (error instanceof DOMException && error.name === "NotAllowedError" && !video.muted) {
+        video.muted = true;
+        void video.play().catch(() => finish());
+      } else {
+        finish();
+      }
+    });
   });
 }

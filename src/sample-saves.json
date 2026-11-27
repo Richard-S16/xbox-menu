@@ -1,0 +1,5 @@
+[
+  { "id": "rally", "title": "Rally Championship", "name": "Championship progress", "blocks": 27 },
+  { "id": "orbit", "title": "Orbital Strike", "name": "Mission checkpoint", "blocks": 16 },
+  { "id": "street", "title": "Street Circuit", "name": "Time trial records", "blocks": 9 }
+]
